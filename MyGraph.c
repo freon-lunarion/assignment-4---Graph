@@ -18,6 +18,7 @@ typedef struct EdgeNode {
     Vertex *v;
     float dist;
     struct EdgeNode *next;
+    struct EdgeNode *prev;
 } EdgeNode;
 
 typedef struct VertexNode {
@@ -25,6 +26,7 @@ typedef struct VertexNode {
     int visited;
     struct VertexNode *next;
     EdgeNode *edges;
+    EdgeNode *lastEdge;
 } VertexNode;
 
 typedef struct GraphRep *Graph;
@@ -59,6 +61,18 @@ float calc_dist_v(Vertex *V1, Vertex *V2) {
     y_sq = pow(y, 2);
 
     return sqrt(x_sq + y_sq);
+}
+
+void reset_vertices(Graph g){
+    VertexNode *cV;
+    cV = malloc(sizeof(VertexNode));
+    // Reset visiting 
+    cV = g->vertices;
+    while (cV ) {
+        cV->visited = 0;
+        cV = cV->next;
+    }
+
 }
 
 QueueHead *CreateQueue() {
@@ -116,6 +130,7 @@ VertexNode *CreateVertexNode(Vertex *v) {
     VN->v = v;
     VN->visited = 0;
     VN->edges = NULL;
+    VN->lastEdge=NULL;
     VN->next = NULL;
 
     return VN;
@@ -127,6 +142,7 @@ EdgeNode *CreateEdgeNode(Vertex *origin, Vertex *v) {
     assert(EN != NULL);
     EN->v = v;
     EN->next = NULL;
+    EN->prev = NULL;
     EN->dist = calc_dist_v(origin,v);
     return EN;
 }
@@ -156,10 +172,12 @@ int InsertEdge(Graph g, Edge *e)
         vn1 = CreateVertexNode(V1);
         ed1 = CreateEdgeNode(V1, V2);
         vn1->edges = ed1;
+        vn1->lastEdge = ed1;
 
         vn2 = CreateVertexNode(V2);
         ed2 = CreateEdgeNode(V2, V1);
         vn2->edges = ed2;
+        vn2->lastEdge = ed2;
         
         vn1->next = vn2;
         g->vertices = vn1;
@@ -217,10 +235,12 @@ int InsertEdge(Graph g, Edge *e)
         vn1 = CreateVertexNode(V1);
         ed1 = CreateEdgeNode(V1, V2);
         vn1->edges = ed1;
+        vn1->lastEdge = ed1;
         
         vn2 = CreateVertexNode(V2);
         ed2 = CreateEdgeNode(V2, V1);
         vn2->edges = ed2;
+        vn2->lastEdge = ed2;
 
         g->nV += 2;
         vn1->next = vn2;
@@ -229,15 +249,15 @@ int InsertEdge(Graph g, Edge *e)
     } else if (vn1 != NULL && vn2 == NULL) {
     // p1 on graph, but p2
         ed1 = CreateEdgeNode(vn1->v, V2);
-        ec = vn1->edges;
-        while (ec->next != NULL) {
-            ec = ec->next;
-        }
-        ec->next = ed1;
+        
+        vn1->lastEdge->next = ed1;
+        ed1->prev = vn1->lastEdge;
+        vn1->lastEdge = ed1;
         
         vn2 = CreateVertexNode(V2);
         ed2 = CreateEdgeNode(V2, vn1->v);
         vn2->edges = ed2;
+        vn2->lastEdge = ed2;
 
         g->nV += 1;
         vc->next = vn2;
@@ -247,13 +267,12 @@ int InsertEdge(Graph g, Edge *e)
         vn1 = CreateVertexNode(V1);
         ed1 = CreateEdgeNode(V1, vn2->v);
         vn1->edges = ed1;
+        vn1->lastEdge = ed1;
 
         ed2 = CreateEdgeNode(vn2->v, V1);
-        ec = vn2->edges;
-        while (ec->next != NULL) {
-            ec = ec->next;
-        }
-        ec->next = ed2;
+		ed2->prev = vn2->lastEdge;
+		vn2->lastEdge->next = ed2;
+        vn2->lastEdge = ed2;
 
 
         g->nV += 1;
@@ -262,18 +281,14 @@ int InsertEdge(Graph g, Edge *e)
     } else {
     // both p1 and p2 on the graph, but not have connection
         ed1 = CreateEdgeNode(vn1->v,vn2->v);
-        ec = vn1->edges;
-        while (ec->next != NULL) {
-            ec = ec->next;
-        }
-        ec->next = ed1;
+  	  ed1->prev = vn1->lastEdge;      
+		vn1->lastEdge->next = ed1;
+		vn1->lastEdge = ed1;
 
         ed2 = CreateEdgeNode(vn2->v,vn1->v);
-        ec = vn2->edges;
-        while (ec->next != NULL) {
-            ec = ec->next;
-        }
-        ec->next = ed2;
+        ed2->prev = vn2->lastEdge;
+        vn2->lastEdge->next = ed2;
+        vn2->lastEdge = ed2;
     }
     
     g->nE += 1;
@@ -287,15 +302,89 @@ void DeleteEdge(Graph g, Edge *e)
     
 }
 
+QueueHead *getReachableVertices(Graph g, Vertex *v) {
+    
+    QueueHead *queue, *result;
+    result = CreateQueue();
+    queue = CreateQueue();
+
+    VertexNode *sV, *cV;
+    cV = malloc(sizeof(VertexNode));
+    sV = malloc(sizeof(VertexNode));
+    sV = g->vertices;
+    while (sV) {
+        if (sV->v->x == v->x && sV->v->y == v->y){
+            break;
+        }
+        sV = sV->next;
+    }
+
+    if (sV == NULL){ // didn't found the vertex on the graph
+        return result;
+    }
+    
+    Vertex *tV;
+    tV = malloc(sizeof(Vertex));
+
+    EdgeNode *EN;
+    EN = malloc(sizeof(EdgeNode));
+
+    AddQueue(queue,sV->v);
+    while (queue->n != 0) {
+        tV = PopQueue(queue);
+        cV = g->vertices;
+        while (cV != NULL) {
+            if (cV->v == tV && cV->visited == 0){
+                AddQueue(result,tV);
+                cV->visited = 1;
+                EN = cV->edges;
+                while (EN != NULL) {
+                    AddQueue(queue,EN->v);
+                    EN = EN->next;
+                }
+            }
+            cV = cV->next;
+        }
+    }
+
+    return result;
+
+}
+
 // Add the time complexity analysis of ReachableVertices() here
 void ReachableVertices(Graph g, Vertex *v)
 {
+    Vertex *tV;
+    tV = malloc(sizeof(Vertex));
+
+    QueueHead *result;
+    result = getReachableVertices(g,v);
     
+    while (result->n != 0) {
+        tV = PopQueue(result);
+        if (tV->x == v->x && tV->y == v->y)
+        {
+            continue;
+        }
+        printf("(%d,%d)",tV->x, tV->y);
+
+        if (result->n != 0){
+            printf(", ");
+        } else {
+            printf("\n");  
+        }
+    }
+
+    reset_vertices(g);
+
 }
 
 // Add the time complexity analysis of ShortestPath() here
 void ShortestPath(Graph g, Vertex *u, Vertex *v)
 {
+    QueueHead *result;
+    result = getReachableVertices(g,v);
+
     
 }
 
@@ -306,9 +395,10 @@ void FreeGraph(Graph g)
 }
 
 // Add the time complexity analysis of ShowGraph() here
+// O(|V|.|E|); V = vertices, E = edges
 void ShowGraph(Graph g)
 {
-    QueueHead *queue;
+    QueueHead *queue, *result;
     queue = CreateQueue();
     Vertex *v;
     v = malloc(sizeof(Vertex));
@@ -322,12 +412,14 @@ void ShowGraph(Graph g)
     while (queue->n != 0) {
         v = PopQueue(queue);
         cV = g->vertices;
-        while (cV != NULL) {
+        while (cV != NULL) { // O(|V|.|E|)
+
             if (cV->v == v && cV->visited == 0){
                 cV->visited = 1;
                 EN = cV->edges;
-                while (EN != NULL) {
-                    printf("(%d,%d)-(%d,%d)\n", v->x,v->y,EN->v->x,EN->v->y);
+                
+                while (EN != NULL) { // O(|E|)
+                    printf("(%d,%d),(%d,%d), ", v->x,v->y,EN->v->x,EN->v->y);
                     AddQueue(queue,EN->v);
                     EN = EN->next;
                 }
@@ -337,7 +429,7 @@ void ShowGraph(Graph g)
 
         cV = g->vertices;
         if (queue->n == 0 ){
-            while(cV) {
+            while(cV) { // O(|V|)
                 if (cV->visited == 0) {
                     AddQueue(queue,cV->v);
                     break;
@@ -347,6 +439,10 @@ void ShowGraph(Graph g)
         }
 
     }
+    
+    reset_vertices(g);
+
+    printf("\n");
 
 }
 
@@ -577,10 +673,14 @@ int main() //sample main for testing
     free(v1);
     free(v2);
 
+    v2 = (Vertex *) malloc(sizeof(Vertex));
+    v2->x=0;
+    v2->y=10;
+    ReachableVertices(g1, v2);
     //Display graph g1
-    ShowGraph(g1);
+    // ShowGraph(g1);
 
-    // // Find the shortest path between (0,0) and (10,6) 
+    // Find the shortest path between (0,0) and (10,6) 
     // v1=(Vertex*) malloc(sizeof(Vertex));
     // assert(v1 != NULL);
     // v2=(Vertex *) malloc(sizeof(Vertex));
