@@ -36,30 +36,32 @@ typedef struct GraphRep { // graph header
     int nE; // #edges
 } GraphRep;
 
-// QUEUE
-typedef struct QueueNode {
+// QUEUE-STACK Hybrid
+typedef struct QNode {
     Vertex *v;
-    struct QueueNode *next;
-} QueueNode;
+    struct QNode *next;
+    struct QNode *prev;
+} QNode;
 
-typedef struct QueueHead {
-    QueueNode *first;
-    QueueNode *last;
+typedef struct QStack {
+    QNode *first;
+    QNode *last;
     int n;
-} QueueHead;
+} QStack;
 
-QueueHead *CreateQueue() {
-    QueueHead *QH;
-    QH = malloc(sizeof(QueueHead));
+QStack *newQStack() {
+    QStack *QH;
+    QH = malloc(sizeof(QStack));
     QH->first == NULL;
+    QH->last == NULL;
     QH->n = 0;
 
     return QH;
 }
 
-void AddQueue(QueueHead *QH,Vertex *V) {
-    QueueNode *N;
-    N = malloc(sizeof(QueueNode));
+void pushQStack(QStack *QH, Vertex *V) {
+    QNode *N;
+    N = malloc(sizeof(QNode));
     N->v = V;
     if (QH->n == 0) {
         QH->first = N;
@@ -68,23 +70,32 @@ void AddQueue(QueueHead *QH,Vertex *V) {
         return;
     }
     QH->last->next = N;
+    N->prev = QH->last;
     QH->last = N;
     QH->n = QH->n +1;
 }
 
-Vertex *PeekQueue(QueueHead *QH) {
-    return QH->first->v;
-}
-
-Vertex *PopQueue(QueueHead *QH) {
-    QueueNode *N;
-    N = malloc(sizeof(QueueNode));
+Vertex *popQueue(QStack *QH) {
+    QNode *N;
+    N = malloc(sizeof(QNode));
 
     N = QH->first;
     QH->n = QH->n -1;
     QH->first = N->next;
     return N->v;
 }
+
+Vertex *popStack(QStack *QH) {
+    QNode *N;
+    N = malloc(sizeof(QNode));
+
+    N = QH->last;
+    QH->n = QH->n -1;
+    QH->last = N->prev;
+    return N->v;
+}
+
+
 // end of QUEUE
 // PRIORITY QUEUE
 typedef struct PQNode { 
@@ -553,11 +564,11 @@ void DeleteEdge(Graph g, Edge *e)
     
 }
 
-QueueHead *getReachableVertices(Graph g, Vertex *v) {
+QStack *getReachableVertices(Graph g, Vertex *v) {
     
-    QueueHead *queue, *result;
-    result = CreateQueue();
-    queue = CreateQueue();
+    QStack *queue, *result;
+    result = newQStack();
+    queue = newQStack();
 
     VertexNode *sV, *cV;
     cV = malloc(sizeof(VertexNode));
@@ -580,17 +591,17 @@ QueueHead *getReachableVertices(Graph g, Vertex *v) {
     EdgeNode *EN;
     EN = malloc(sizeof(EdgeNode));
 
-    AddQueue(queue,sV->v);
+    pushQStack(queue,sV->v);
     while (queue->n != 0) {
-        tV = PopQueue(queue);
+        tV = popQueue(queue);
         cV = g->vertices;
         while (cV != NULL) {
             if (cV->v == tV && cV->visited == 0){
-                AddQueue(result,tV);
+                pushQStack(result,tV);
                 cV->visited = 1;
                 EN = cV->edges;
                 while (EN != NULL) {
-                    AddQueue(queue,EN->v);
+                    pushQStack(queue,EN->v);
                     EN = EN->next;
                 }
             }
@@ -608,11 +619,11 @@ void ReachableVertices(Graph g, Vertex *v)
     Vertex *tV;
     tV = malloc(sizeof(Vertex));
 
-    QueueHead *result;
+    QStack *result;
     result = getReachableVertices(g,v);
     
     while (result->n != 0) {
-        tV = PopQueue(result);
+        tV = popQueue(result);
         if (tV->x == v->x && tV->y == v->y)
         {
             continue;
@@ -630,11 +641,16 @@ void ReachableVertices(Graph g, Vertex *v)
 
 }
 
+void *dijkstra(VertexNode *origin, VertexNode *target) {
 
+}
 // Add the time complexity analysis of ShortestPath() here
 void ShortestPath(Graph g, Vertex *u, Vertex *v)
 {
-    QueueHead *result;
+    VertexNode *cur, *origin, *target;
+    QStack *vertices;
+    vertices = getReachableVertices(g, u);
+
 
     
 }
@@ -649,8 +665,8 @@ void FreeGraph(Graph g)
 // O(|V|.|E|); V = vertices, E = edges
 void ShowGraph(Graph g)
 {
-    QueueHead *queue, *result;
-    queue = CreateQueue();
+    QStack *queue, *result;
+    queue = newQStack();
     Vertex *v;
     v = malloc(sizeof(Vertex));
 
@@ -659,9 +675,9 @@ void ShowGraph(Graph g)
     // VN = g->vertices;
     EdgeNode *EN;
     EN = malloc(sizeof(EdgeNode)); 
-    AddQueue(queue,g->vertices->v);
+    pushQStack(queue,g->vertices->v);
     while (queue->n != 0) {
-        v = PopQueue(queue);
+        v = popQueue(queue);
         cV = g->vertices;
         while (cV != NULL) { // O(|V|.|E|)
 
@@ -671,7 +687,7 @@ void ShowGraph(Graph g)
                 
                 while (EN != NULL) { // O(|E|)
                     printf("(%d,%d),(%d,%d), ", v->x,v->y,EN->v->x,EN->v->y);
-                    AddQueue(queue,EN->v);
+                    pushQStack(queue,EN->v);
                     EN = EN->next;
                 }
             }
@@ -682,7 +698,7 @@ void ShowGraph(Graph g)
         if (queue->n == 0 ){
             while(cV) { // O(|V|)
                 if (cV->visited == 0) {
-                    AddQueue(queue,cV->v);
+                    pushQStack(queue,cV->v);
                     break;
                 }
                 cV = cV->next;
