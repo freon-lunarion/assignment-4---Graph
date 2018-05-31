@@ -36,6 +36,7 @@ typedef struct GraphRep { // graph header
     int nE; // #edges
 } GraphRep;
 
+// QUEUE
 typedef struct QueueNode {
     Vertex *v;
     struct QueueNode *next;
@@ -46,34 +47,6 @@ typedef struct QueueHead {
     QueueNode *last;
     int n;
 } QueueHead;
-// A vertex node stores a vertex and other information, and you need to expand this type
-
-//The above types serve as a starting point only. You need to expand them and add more types. 
-// Watch the lecture video between 7:50pm-8:20 or so for my discussion about this assignment 
-   
-float calc_dist_v(Vertex *V1, Vertex *V2) {
-    int x,y,x_sq,y_sq;
-
-    x = V1->x - V2->x;
-    y = V1->y - V2->y;
-
-    x_sq = pow(x, 2);
-    y_sq = pow(y, 2);
-
-    return sqrt(x_sq + y_sq);
-}
-
-void reset_vertices(Graph g){
-    VertexNode *cV;
-    cV = malloc(sizeof(VertexNode));
-    // Reset visiting 
-    cV = g->vertices;
-    while (cV ) {
-        cV->visited = 0;
-        cV = cV->next;
-    }
-
-}
 
 QueueHead *CreateQueue() {
     QueueHead *QH;
@@ -111,6 +84,284 @@ Vertex *PopQueue(QueueHead *QH) {
     QH->n = QH->n -1;
     QH->first = N->next;
     return N->v;
+}
+// end of QUEUE
+// PRIORITY QUEUE
+typedef struct PQNode { 
+  // each node stores the priority (key), name, execution time,
+  //  release time and deadline of one task
+  int key; //key of this item
+  Vertex *v;
+  struct PQNode *parent;
+  struct PQNode *right;
+  struct PQNode *left;
+} PQNode;
+
+
+typedef struct PQ{ //this is heap header
+  int  size;      // count of items in the heap
+  PQNode *lastNode; // last node pointer 
+  PQNode *root; // pointer to the root of heap
+} PQ;
+
+PQ *newPQ() {
+    PQ *pq;
+    pq = malloc(sizeof(PQ));
+    assert(pq != NULL);
+    pq->size = 0;
+    pq->lastNode = NULL;
+    pq->root = NULL;
+    return pq;
+}
+
+PQNode *newPQNode(int key, Vertex *vertex, PQNode *left, PQNode *right, PQNode *parent) {
+    PQNode *new;
+    new =  malloc(sizeof(PQNode));
+    assert(new != NULL);
+    new->key = key;
+    new->v   = vertex;
+
+    new->left   = left; // left child
+    new->right  = right; // righ child
+    new->parent = parent; // parent
+    return new;
+}
+
+PQNode *mostLeftPQ(PQNode *N) {
+  while (N->left != NULL) {
+    N = N->left;
+  }
+
+  return N;
+}
+
+
+void moveUpPQ(PQ *h, PQNode *n){
+    PQNode *p = n->parent;
+    if (p->parent) {
+        if (p == p->parent->right){
+            p->parent->right = n;
+        } else if (p == p->parent->left) {
+            p->parent->left = n;
+        }
+    } else {
+        h->root = n;
+    }
+    n->parent = p->parent;
+    int nside;
+    PQNode *c;
+    if (n == p->right){
+        nside = 1;
+        c = p->left;
+    } else{
+        nside = 0;
+        c = p->right;
+    }
+
+    p->left = n->left;
+    if (p->left) {
+        p->left->parent = p;
+    }
+
+    p->right = n->right;
+    if (p->right) {
+        p->right->parent = p;
+    }
+
+    if (nside == 0){
+        n->left = p;
+    } else {
+        n->right = p;
+    }
+
+    p->parent = n;
+
+    if (nside == 1){
+        n->left = c;
+    } else {
+        n->right = c;
+    }
+
+    if (c) {
+        c->parent = n;
+    }
+
+    if (n == h->lastNode){
+        h->lastNode = p;
+    }
+}
+
+void replacePQ(PQ *h, PQNode *d, PQNode *s) {
+    if (d->parent) {
+        if (d == d->parent->right) {
+            d->parent->right = s;
+        } else {
+            d->parent->left = s;
+        }   
+
+    } else {
+        h->root = s;
+    }
+
+    s->parent = d->parent;
+
+    s->left = d->left;
+    if (s->left) {
+        s->left->parent = s;
+    } 
+
+    s->right = d->right;
+    if (s->right) {
+        s->right->parent = s;
+    }
+}
+
+void insertPQ(PQ *T, int k, Vertex *n) {
+    PQNode *newNode,*pNode,*temp;
+    if (T->size == 0) {
+        newNode = newPQNode(k,n,NULL,NULL,NULL);
+        T->root = newNode;
+        T->size += 1;
+        T->lastNode = newNode;      
+        return;
+    }
+
+    // int cap = capPQ(lvPQ(T->size));
+    if (T->size % 2 == 0){ // time complexity = 1+1+1+3+1; O(1)
+        pNode = T->lastNode->parent;
+        newNode = newPQNode(k,n,NULL,NULL,pNode);
+        pNode->right = newNode;
+        T->size += 1;
+        T->lastNode = newNode;
+    } else {
+        pNode = T->lastNode;
+        while (T->root != temp){
+            if (pNode->parent->right == pNode) {
+                pNode = pNode->parent;
+            } else {
+                break;
+            }
+        }
+
+        pNode = pNode->parent->right;
+        pNode = mostLeftPQ(pNode);
+        newNode = newPQNode(k,n,NULL,NULL,pNode);
+        pNode->left = newNode;
+        T->size +=1;
+        T->lastNode = newNode;
+        if (newNode->key < pNode->key){
+            T->lastNode = pNode;
+        }  
+    }
+
+    while (newNode->parent != NULL && newNode->key < newNode->parent->key) {
+        moveUpPQ(T,newNode);
+    } 
+}
+
+PQNode* removePQ(PQ *T) {
+    PQNode *firstNode, *cur, *result;
+    firstNode = T->root;
+    result = newPQNode(firstNode->key, firstNode->v, NULL, NULL, NULL);
+
+    if (!firstNode->parent && !firstNode->left && !firstNode->right){
+        T->root = NULL;
+        T->lastNode = NULL;
+        T->size = 0;
+        return firstNode;
+    }
+
+    cur = T->lastNode;
+    while (cur->parent && cur == cur->parent->left) {
+        cur = cur->parent;
+    } 
+
+    if (cur->parent){
+        cur = cur->parent->left;
+        while (cur->right) {
+            cur = cur->right;
+        }
+    } else {
+        while (cur->right) {
+            cur = cur->right;
+        }
+    }
+
+    // disconect lastNode
+    if (T->lastNode == T->lastNode->parent->right) {
+        T->lastNode->parent->right = NULL;
+    } else {
+        T->lastNode->parent->left = NULL;
+    }
+
+    if(firstNode == T->lastNode) {
+        T->lastNode = cur;
+    } else {
+        PQNode *lastNode;
+        lastNode = T->lastNode;
+        replacePQ(T,firstNode, lastNode);
+        if (firstNode != cur) {
+            T->lastNode = cur;
+        }
+
+        if (lastNode->parent && lastNode->key < lastNode->parent->key){
+            do {
+                moveUpPQ(T,lastNode);
+            } while (lastNode->parent && lastNode->key < lastNode->parent->key);
+        } else {
+            while (lastNode->left || lastNode->right) {
+                PQNode *lNode, *rNode;
+                lNode = lastNode->left;
+                rNode = lastNode->right;
+                if (lNode && rNode ){
+                    if (lastNode->key < lNode->key && lastNode < rNode->key){
+                        break;
+                    }      
+
+                    if (lNode->key < rNode->key) {
+                        moveUpPQ(T,lNode);            
+                    } else {
+                        moveUpPQ(T,rNode);
+                    }
+
+                } else if(lNode) {
+                    PQNode *lNode;
+                    lNode = lastNode->left;
+                    if (lastNode->key < lNode->key){
+                        break;
+                    }
+                    moveUpPQ(T,lNode);
+
+                }
+            }
+        }
+    }
+    T->size -= 1;
+    return result;
+}
+// end of PRIORITY QUEUE
+   
+float calc_dist_v(Vertex *V1, Vertex *V2) {
+    int x,y,x_sq,y_sq;
+
+    x = V1->x - V2->x;
+    y = V1->y - V2->y;
+
+    x_sq = pow(x, 2);
+    y_sq = pow(y, 2);
+
+    return sqrt(x_sq + y_sq);
+}
+
+void reset_vertices(Graph g){
+    VertexNode *cV;
+    cV = malloc(sizeof(VertexNode));
+    // Reset visiting 
+    cV = g->vertices;
+    while (cV ) {
+        cV->visited = 0;
+        cV = cV->next;
+    }
 }
 
 Vertex *CreateVertex(int x, int y) {
@@ -379,11 +630,11 @@ void ReachableVertices(Graph g, Vertex *v)
 
 }
 
+
 // Add the time complexity analysis of ShortestPath() here
 void ShortestPath(Graph g, Vertex *u, Vertex *v)
 {
     QueueHead *result;
-    result = getReachableVertices(g,v);
 
     
 }
