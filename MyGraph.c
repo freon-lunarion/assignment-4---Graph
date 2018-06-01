@@ -126,8 +126,8 @@ void displayQStack(QStack *QH,int allPrint) {
 typedef struct PQNode {
     // each node stores the priority (key), name, execution time,
     //  release time and deadline of one task
-    int key; //key of this item
-    Vertex *v;
+    float key; //key of this item
+    VertexNode *vn;
     struct PQNode *parent;
     struct PQNode *right;
     struct PQNode *left;
@@ -140,6 +140,19 @@ typedef struct PQ{ //this is heap header
     PQNode *root; // pointer to the root of heap
 } PQ;
 
+int lvPQ(int val){
+    int result;
+    result = floor(log(val) / log(2));
+    return result;
+}
+
+int capPQ(int height) {
+    int result;
+    result = pow(2,height+1) - 1;
+
+    return result;
+}
+
 PQ *newPQ() {
     PQ *pq;
     pq = malloc(sizeof(PQ));
@@ -150,12 +163,12 @@ PQ *newPQ() {
     return pq;
 }
 
-PQNode *newPQNode(int key, Vertex *vertex, PQNode *left, PQNode *right, PQNode *parent) {
+PQNode *newPQNode(int key, VertexNode *vertex, PQNode *left, PQNode *right, PQNode *parent) {
     PQNode *new;
     new =  malloc(sizeof(PQNode));
     assert(new != NULL);
     new->key = key;
-    new->v   = vertex;
+    new->vn   = vertex;
 
     new->left   = left; // left child
     new->right  = right; // righ child
@@ -252,7 +265,7 @@ void replacePQ(PQ *h, PQNode *d, PQNode *s) {
     }
 }
 
-void insertPQ(PQ *T, int k, Vertex *n) {
+void insertPQ(PQ *T, int k, VertexNode *n) {
     PQNode *newNode,*pNode,*temp;
     if (T->size == 0) {
         newNode = newPQNode(k,n,NULL,NULL,NULL);
@@ -262,12 +275,19 @@ void insertPQ(PQ *T, int k, Vertex *n) {
         return;
     }
 
-    // int cap = capPQ(lvPQ(T->size));
+    int cap = capPQ(lvPQ(T->size));
     if (T->size % 2 == 0){ // time complexity = 1+1+1+3+1; O(1)
         pNode = T->lastNode->parent;
         newNode = newPQNode(k,n,NULL,NULL,pNode);
         pNode->right = newNode;
         T->size += 1;
+        T->lastNode = newNode;
+    } else if (T->size == cap) {
+        // time complexity = log n + 1+1 +3 +1; O(log n)
+        pNode = mostLeftPQ(T->root);
+        newNode = newPQNode(k,n,NULL,NULL,pNode);
+        pNode->left = newNode;
+        T->size +=1;
         T->lastNode = newNode;
     } else {
         pNode = T->lastNode;
@@ -298,7 +318,7 @@ void insertPQ(PQ *T, int k, Vertex *n) {
 PQNode* removePQ(PQ *T) {
     PQNode *firstNode, *cur, *result;
     firstNode = T->root;
-    result = newPQNode(firstNode->key, firstNode->v, NULL, NULL, NULL);
+    result = newPQNode(firstNode->key, firstNode->vn, NULL, NULL, NULL);
 
     if (!firstNode->parent && !firstNode->left && !firstNode->right){
         T->root = NULL;
@@ -350,7 +370,7 @@ PQNode* removePQ(PQ *T) {
                 lNode = lastNode->left;
                 rNode = lastNode->right;
                 if (lNode && rNode ){
-                    if (lastNode->key < lNode->key && lastNode < rNode->key){
+                    if (lastNode->key < lNode->key && lastNode->key < rNode->key){
                         break;
                     }
 
@@ -654,19 +674,25 @@ void ReachableVertices(Graph g, Vertex *v)
     displayQStack(result,0);
 }
 
-void *dijkstra(VertexNode *origin, VertexNode *target,QStack *paths) {
+void dijkstra(VertexNode *origin, VertexNode *target,QStack *paths) {
     VertexNode *temp;
     EdgeNode *ed;
     PQ *pq;
-    pq = newPQ;
+    pq = newPQ();
     ed = origin->edges;
     while (ed){
+        if (ed->vn == target) {
+            pushQStack(paths,ed->vn);
+            ed->vn->visited = 1;
+            return;
+        }
         insertPQ(pq,ed->dist,ed->vn);
         ed= ed->next;
     }
     PQNode *pqn;
-    while (pq->n != 0) {
+    while (pq->size != 0) {
         pqn = removePQ(pq);
+
         if (pqn->vn == target && pqn->vn->visited == 0){
             pqn->vn->visited = 1;
             pushQStack(paths,pqn->vn);
@@ -675,8 +701,11 @@ void *dijkstra(VertexNode *origin, VertexNode *target,QStack *paths) {
             pqn->vn->visited = 1;
             pushQStack(paths,pqn->vn);
             dijkstra(pqn->vn,target,paths);
+            if (paths->last->vn == target) {
+                return;
+            }
         } else {
-            
+
         }
     }
     temp = popStack(paths);
@@ -688,29 +717,33 @@ void *dijkstra(VertexNode *origin, VertexNode *target,QStack *paths) {
 void ShortestPath(Graph g, Vertex *u, Vertex *v)
 {
     VertexNode *cur, *origin, *target;
-    QStack *vertices,*paths;
-    vertices = getReachableVertices(g, u);
+    origin = NULL;
+    target = NULL;
+    QStack *paths;
+    paths = newQStack();
+    cur = g->vertices;
+    while (cur) {
 
-    if (vertices == NULL) {
-        return;
-    }
+        if (cur->v->x == u->x && cur->v->y == u->y){
 
-    QNode *cQ;
-    cQ = vertices->first;
-    while (cQ == NULL) {
-        if (cQ->vn->v->x == v->x && cQ->vn->v->y == v->y){
-            // cQ->vn will be the target
-            break;
+            origin = cur;
         }
-        cQ = cQ->next;
+        if (cur->v->x == v->x && cur->v->y == v->y){
+
+            target = cur;
+        }
+
+        cur = cur->next;
     }
 
-    if (cQ != NULL){
+    if (origin == NULL || target == NULL){
         return;
     }
-
-
-
+    origin->visited = 1;
+    pushQStack(paths,origin);
+    dijkstra(origin, target,paths);
+    displayQStack(paths,1);
+    reset_vertices(g);
 
 }
 
@@ -981,22 +1014,22 @@ int main() //sample main for testing
     assert(v2 != NULL);
     v2->x=30;
     v2->y=10;
-    ReachableVertices(g1, v2);
+    // ReachableVertices(g1, v2);
     //Display graph g1
-    // ShowGraph(g1);
+//    ShowGraph(g1);
 
     // Find the shortest path between (0,0) and (10,6)
-    // v1=(Vertex*) malloc(sizeof(Vertex));
-    // assert(v1 != NULL);
-    // v2=(Vertex *) malloc(sizeof(Vertex));
-    // assert(v2 != NULL);
-    // v1->x=0;
-    // v1->y=0;
-    // v2->x=10;
-    // v2->y=6;
-    // ShortestPath(g1, v1, v2);
-    // free(v1);
-    // free(v2);
+    v1=(Vertex*) malloc(sizeof(Vertex));
+    assert(v1 != NULL);
+    v2=(Vertex *) malloc(sizeof(Vertex));
+    assert(v2 != NULL);
+    v1->x=0;
+    v1->y=0;
+    v2->x=10;
+    v2->y=6;
+    ShortestPath(g1, v1, v2);
+    free(v1);
+    free(v2);
 
     // // Delete edge (0,0)-(5, 6)
     // e_ptr = (Edge*) malloc(sizeof(Edge));
